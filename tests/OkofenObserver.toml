@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[project]
+name = "OkofenObserver"
+version = "0.0.1"
+authors = [
+  { name="Vincent EL Kouby-Benichou", email="vincent.elkouby@gmail.com" },
+]
+description = "Package Python to get data from your Okofen device by daily emailling"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: Apache License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/velkouby/OkfenObserver"

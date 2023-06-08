@@ -7,6 +7,7 @@ import glob
 from datetime import datetime
 from datetime import timedelta  
 from dataclasses import dataclass
+from dateutil import parser
 
 def datetime2str(d):
     return d.strftime("%Y-%m-%d %H:%M:%S")
@@ -156,10 +157,12 @@ class Okofen():
             'HK1 RT Ist[°C]': 'T°C Ambiante',
             'HK1 RT Soll[°C]': 'T°C Ambiante Consigne',
             'HK1 Pumpe': 'Circulateur Chauffage (On/Off)',
+            'HK1 Status':"Status Chauff.",
             'WW1 EinT Ist[°C]':'T°C ECS',
             'WW1 AusT Ist[°C]':'T°C ECS (arret)',
             'WW1 Soll[°C]':'T°C ECS Consigne',
             'WW1 Pumpe':'Circulateur ECS',
+            'WW1 Status':'Status ESC',
             'PE1 Modulation[%]':'PE1 Modulation[%]',
             'PE1 FRT Ist[°C]':'T°C Flamme',
             'PE1 FRT Soll[°C]':'T°C Flamme Consigne',
@@ -181,6 +184,13 @@ class Okofen():
     def select_data(self,d:datetime, nb_days = 1):
         first_day = datetime(d.year,d.month,d.day,3,0,0)
         last_day = first_day+timedelta(days=nb_days)
+        return self.data.loc[first_day:last_day]
+    
+    def select_data_by_days(self, start_date:str, end_date:str)->pd.DataFrame:
+        start = parser.parse(start_date,dayfirst=True)
+        end = parser.parse(end_date,dayfirst=True)
+        first_day = datetime(start.year,start.month,start.day,3,0,0)
+        last_day = datetime(end.year,end.month,end.day,2,59,59)
         return self.data.loc[first_day:last_day]
     
     def get_day_list(self):

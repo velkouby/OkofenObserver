@@ -3,3 +3,5 @@ ipykernel
 pandas
 tables
 numpy
+django==4.2.2
+

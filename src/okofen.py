@@ -8,7 +8,7 @@ from datetime import datetime
 from datetime import timedelta  
 from dataclasses import dataclass
 from dateutil import parser
-
+import json
 def datetime2str(d):
     return d.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -48,7 +48,7 @@ def get_date_from_okofen_file(filename):
     b = s.basename(filename).split('_')
     return int(b[1][:4]),int(b[1][4:6]),int(b[1][6:])
 
-def read_okfen_data(filename):
+def read_okfen_data(filename)->pd.DataFrame|None:
     try:
         return pd.read_csv(filename,sep=';',encoding = "ISO-8859-1")
     except Exception:
@@ -64,6 +64,20 @@ class OkofenConfig:
     gmail_passwd:str='xxxxxxxxxxx'
     email_subject_key_serach:str = 'P0060B5_41F11E'
     gmail_box:str="INBOX"
+    
+def read_OkofenConfig(filename:str):
+    f = open(filename)
+    config_data = json.load(f)
+    f.close()
+
+    config = OkofenConfig(
+        data_dir=config_data["data_dir"],
+        gmail_acount=config_data["gmail_acount"],
+        gmail_passwd=config_data["gmail_passwd"],
+        email_subject_key_serach=config_data["email_subject_key_serach"],
+        gmail_box=config_data["gmail_box"],
+    )
+    return config
     
 class Okofen():
     def __init__(self,config:OkofenConfig, verbose:int = 0):
@@ -114,6 +128,8 @@ class Okofen():
             self.gmail.logout_mailbox()
             self.local_files = s.ls_files(self.data_dir,'csv',False)
             
+    def get_local_datafile_list(self):
+        return glob.glob(s.join(self.data_dir,'touch_*.csv'))
     def update_local_db(self):
         db_filename = s.join(self.data_dir,'0-okofen_db-vendome.h5')
         if s.exists(db_filename):
@@ -121,7 +137,7 @@ class Okofen():
         else:
             data = pd.DataFrame()
         lastes_date_in_db = find_lastest_date(self.data)
-        local_files = glob.glob(s.join(self.data_dir,'touch_*.csv'))
+        local_files = self.get_local_datafile_list()
         have_new_data = False
         
         for i in range(len(local_files)):

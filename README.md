@@ -21,3 +21,8 @@ Create your own config_okofen.json file with your Gmail application credentials 
 }
 
 '''
+
+
+# Run server
+python manage.py runserver
+python manage.py shell

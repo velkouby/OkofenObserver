@@ -22,6 +22,10 @@ Create your own config_okofen.json file with your Gmail application credentials 
 
 '''
 
+# Create Gmail app passworld
+
+https://support.google.com/mail/answer/185833?hl=en
+
 
 # Run server
 python manage.py runserver

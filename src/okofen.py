@@ -130,6 +130,7 @@ class Okofen():
             
     def get_local_datafile_list(self):
         return glob.glob(s.join(self.data_dir,'touch_*.csv'))
+    
     def update_local_db(self):
         db_filename = s.join(self.data_dir,'0-okofen_db-vendome.h5')
         if s.exists(db_filename):

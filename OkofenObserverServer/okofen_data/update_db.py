@@ -27,17 +27,25 @@ dico = {
     'WW1 Status':'Status ESC',
 }
 
+def get_date_from_filename(filename:str)->dt.date:
+    tmp = s.basename(filename).split('_')[1]
+    return dt.date(year=int(tmp[:4]), month=int(tmp[4:6]),day=int(tmp[6:8]))
+
 def update_db(verbose=0):
     config = read_OkofenConfig("../config_okofen.json" )
     okofen = Okofen(config)
     #okofen.download_data_from_gmail()
     date_max:dt.date = RawData.objects.aggregate(Max('datetime'))['datetime__max'].date()
     local_files = okofen.get_local_datafile_list()
-    for i, filename in enumerate(local_files):
+    local_files.sort()
+    files_by_date={}
+    for filename in local_files:
+        files_by_date[get_date_from_filename(filename)]=filename
+
+    for current_date in files_by_date:
+        filename = files_by_date[current_date]
         if verbose>0:
             print(f"read {filename}")
-        current_date = get_date_from_okofen_file(filename)
-        current_date:dt.date = dt.date(current_date[0],current_date[1],current_date[2])
         if current_date>date_max:
             current = read_okfen_data(filename)
             if current is None:
@@ -53,9 +61,12 @@ def update_db(verbose=0):
             for idx in current.index:
                 if verbose>0:
                     print(f"{idx}            ",end='\r')
+                datetime_c = make_aware(current.loc[idx,'datetime'])
+                if datetime_c.date()!=current_date:
+                    continue
                 if 'T°C ECS' in current.columns:
                     obj = RawData(
-                            datetime = make_aware(current.loc[idx,'datetime']),
+                            datetime = datetime_c,
                             ext_temp = current.loc[idx,'T°C Extérieure'],
                             house_temp = current.loc[idx,'T°C Ambiante'],
                             house_temp_target =current.loc[idx,'T°C Ambiante Consigne'],
@@ -77,7 +88,7 @@ def update_db(verbose=0):
                             water_status = current.loc[idx,'Status ESC'])
                 else:
                     obj = RawData(
-                            datetime = make_aware(current.loc[idx,'datetime']),
+                            datetime = datetime_c,
                             ext_temp = current.loc[idx,'T°C Extérieure'],
                             house_temp = current.loc[idx,'T°C Ambiante'],
                             house_temp_target =current.loc[idx,'T°C Ambiante Consigne'],

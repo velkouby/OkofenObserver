@@ -11,3 +11,6 @@ python manage.py migrate
 
 * Admin site
 python manage.py createsuperuser
+
+* python manage.py runserver
+  

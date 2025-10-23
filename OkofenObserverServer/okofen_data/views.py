@@ -74,6 +74,26 @@ def _sum_descents(series) -> float:
     return float(consumed) if consumed == consumed else 0.0  # handle NaN
 
 
+def _time_window_mean(df, colname: str, start: datetime, end: datetime):
+    if df is None or df.empty or colname not in df.columns:
+        return None
+    # Align timezone awareness for comparisons
+    try:
+        index_tz = getattr(df.index, 'tz', None)
+        if index_tz is not None:
+            if start.tzinfo is None:
+                start = djtz.make_aware(start)
+            if end.tzinfo is None:
+                end = djtz.make_aware(end)
+    except Exception:
+        pass
+    window = df.loc[(df.index >= start) & (df.index < end)]
+    if window.empty:
+        return None
+    s = window[colname].dropna()
+    return float(s.mean()) if not s.empty else None
+
+
 def index(request):
     # Compute dashboard metrics for the last complete day of data
     df, start_dt, end_dt = _compute_last_complete_day_dataframe()
@@ -113,17 +133,34 @@ def index(request):
         'temp_ambiante_moy': _masked_mean('T°C Ambiante'),
     }
 
-    # ECS (optional): daily averages
+    # ECS: averages
     def _daily_mean(colname):
         if df is None or df.empty or colname not in df.columns:
             return None
         s = df[colname].dropna()
         return float(s.mean()) if not s.empty else None
 
+    ecs_mask = None
+    if df is not None and not df.empty and 'T°C ECS Consigne' in df.columns:
+        ecs_mask = df['T°C ECS Consigne'].fillna(0) > 40.0
+    def _ecs_heating_mean():
+        if df is None or df.empty or 'T°C ECS' not in df.columns:
+            return None
+        if ecs_mask is None or not ecs_mask.any():
+            return None
+        s = df.loc[ecs_mask, 'T°C ECS'].dropna()
+        return float(s.mean()) if not s.empty else None
+
     ecs_stats = {
-        'temp_ecs_moy': _daily_mean('T°C ECS'),
-        'temp_ecs_consigne_moy': _daily_mean('T°C ECS Consigne'),
+        'temp_ecs_chauffe_moy': _ecs_heating_mean(),
+        'temp_ecs_global_moy': _daily_mean('T°C ECS'),
     }
+
+    # Night ambient temperature mean between 03:00 and 05:00
+    night_start = start_dt
+    night_end = start_dt + timedelta(hours=2)
+    night_ambiante_moy = _time_window_mean(df, 'T°C Ambiante', night_start, night_end)
+    night_ext_moy = _time_window_mean(df, 'T°C Extérieure', night_start, night_end)
 
     context = {
         'day_start': start_dt,
@@ -133,6 +170,8 @@ def index(request):
         'pellet_consumed_kg': round(pellet_consumed, 2) if pellet_consumed is not None else None,
         'heating_stats': heating_stats,
         'ecs_stats': ecs_stats,
+        'night_ambiante_moy': night_ambiante_moy,
+        'night_ext_moy': night_ext_moy,
     }
     return render(request, "okofen_data/home.html", context)
 

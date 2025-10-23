@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Sequence
 
+from django.contrib.auth.decorators import login_required
 from django.core.serializers.json import DjangoJSONEncoder
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -113,6 +114,7 @@ def _chart_data(stats: Sequence[DailyStat]) -> dict:
     }
 
 
+@login_required
 def index(request):
     recent_stats_desc = list(DailyStat.objects.filter(samples_count__gt=0).order_by('-day')[:30])
     day_summary = _build_summary(recent_stats_desc[:1])
@@ -149,6 +151,7 @@ def _df_to_records(df):
     return d2.to_dict(orient='records')
 
 
+@login_required
 def dayjson(request, year: int, month: int, day: int):
     date = datetime(year=year, month=month, day=day)
     df = api.get_data_for_one_day(date)
@@ -156,6 +159,7 @@ def dayjson(request, year: int, month: int, day: int):
     return JsonResponse({"count": len(records), "data": records})
 
 
+@login_required
 def rangejson(request, start: str, end: str):
     """Return JSON for inclusive date range [start, end] at day granularity.
     Dates must be in YYYY-MM-DD format.
@@ -174,6 +178,7 @@ def rangejson(request, start: str, end: str):
     return JsonResponse({"count": len(records), "data": records, "start": start, "end": end})
 
 
+@login_required
 def lastdaysjson(request, days: int):
     if days <= 0:
         return JsonResponse({"error": "days must be > 0"}, status=400)
@@ -182,6 +187,7 @@ def lastdaysjson(request, days: int):
     return JsonResponse({"count": len(records), "data": records, "days": days})
 
 
+@login_required
 def graph_explorer(request):
     metrics = [
         {

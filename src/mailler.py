@@ -17,6 +17,8 @@ class EmailConnector():
         self.username=username
         self.password=password
         self.verbose = True
+        self.current_directory = None
+        self.current_readonly = True
         self.imap_ssl_connexion()
                
     def imap_ssl_connexion(self):
@@ -67,9 +69,11 @@ class EmailConnector():
                 print(directory.decode())
         return directories
     
-    def set_directory(self,directory):
-        resp_code, mail_count = self.imap_ssl.select(mailbox=directory, readonly=True)
+    def set_directory(self, directory, readonly=True):
+        resp_code, mail_count = self.imap_ssl.select(mailbox=directory, readonly=readonly)
         self.print_verbose(resp_code)
+        self.current_directory = directory
+        self.current_readonly = readonly
         return int(mail_count[0])
             
     def search_emails(self, field,key_word ):
@@ -103,3 +107,14 @@ class EmailConnector():
         self.print_verbose(resp_code)
         return email.message_from_string(mail_data[0][1].decode('utf-8'))
 
+    def delete_email(self, mail_id):
+        if getattr(self, "current_readonly", True):
+            raise RuntimeError("Mailbox is in read-only mode; cannot delete emails.")
+        resp_code, response = self.imap_ssl.store(str(mail_id), '+FLAGS', '\\Deleted')
+        self.print_verbose(resp_code)
+        return resp_code == 'OK'
+
+    def expunge(self):
+        resp_code, response = self.imap_ssl.expunge()
+        self.print_verbose(resp_code)
+        return resp_code == 'OK'

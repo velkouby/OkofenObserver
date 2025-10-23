@@ -23,6 +23,12 @@ class Command(BaseCommand):
             help="N'exécute pas le téléchargement Gmail; importe seulement les CSV locaux.",
         )
         parser.add_argument(
+            "--keep-emails",
+            action="store_true",
+            dest="keep_emails",
+            help="Conserve les emails sur Gmail après téléchargement.",
+        )
+        parser.add_argument(
             "--verbose",
             type=int,
             dest="verbose",
@@ -41,6 +47,7 @@ class Command(BaseCommand):
         config_path = options["config"]
         verbose = int(options["verbose"]) if options["verbose"] is not None else 1
         do_download = not options["no_download"]
+        delete_emails = not options.get("keep_emails")
 
         if not os.path.isfile(config_path):
             self.stderr.write(self.style.ERROR(f"Fichier de configuration introuvable: {config_path}"))
@@ -52,7 +59,11 @@ class Command(BaseCommand):
             self.stdout.write("[1/2] Téléchargement des CSV depuis Gmail…")
             try:
                 cfg = read_OkofenConfig(config_path)
-                okofen = Okofen(cfg, verbose=verbose)
+                okofen = Okofen(cfg, verbose=verbose, delete_emails=delete_emails)
+                if delete_emails:
+                    self.stdout.write("Suppression des emails après téléchargement activée.")
+                else:
+                    self.stdout.write("Les emails seront conservés (--keep-emails).")
                 okofen.download_data_from_gmail()
                 self.stdout.write(self.style.SUCCESS("Téléchargement terminé."))
             except Exception as e:

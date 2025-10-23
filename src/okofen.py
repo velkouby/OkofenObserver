@@ -80,12 +80,13 @@ def read_OkofenConfig(filename:str):
     return config
     
 class Okofen():
-    def __init__(self,config:OkofenConfig, verbose:int = 0):
+    def __init__(self,config:OkofenConfig, verbose:int = 0, delete_emails: bool = True):
         self.config = config
         self.verbose = verbose
         self.mail_dir = self.config.gmail_box
         self.key_serach = self.config.email_subject_key_serach
         self.data_dir = self.config.data_dir
+        self.delete_emails = delete_emails
         self.gmail = EmailConnector(username = self.config.gmail_acount,password = config.gmail_passwd)
         self.gmail.verbose = verbose == 1
         self.local_files = s.ls_files(self.data_dir,'csv',False)
@@ -116,15 +117,29 @@ class Okofen():
                         fp.write(part.get_payload(decode=True))
                 self.print(f'"{filename}" has been downloaded' )
         
-    def download_data_from_gmail(self):       
+    def download_data_from_gmail(self, delete_emails: bool | None = None):      
+        if delete_emails is None:
+            delete_emails = self.delete_emails
         if self.gmail.connect_mailbox():
-            mail_count = self.gmail.set_directory(self.mail_dir)
+            mail_count = self.gmail.set_directory(self.mail_dir, readonly=not delete_emails)
             self.print(f'{mail_count} emails in {self.mail_dir}')
             email_ids = self.gmail.search_emails('FROM',self.key_serach)
             self.print(f'{len(email_ids)} found from sender {self.key_serach}')
             for id in email_ids:
                 email_message = self.gmail.get_email(id,False)
                 self.get_attachement_from_okfen_email(email_message,self.local_files)
+                if delete_emails:
+                    try:
+                        self.gmail.delete_email(id)
+                        self.print(f"Email {id} deleted from {self.mail_dir}")
+                    except Exception as exc:
+                        self.print(f"Failed to delete email {id}: {exc}")
+            if delete_emails and email_ids:
+                try:
+                    self.gmail.expunge()
+                    self.print("Mailbox expunged after deletions")
+                except Exception as exc:
+                    self.print(f"Failed to expunge mailbox: {exc}")
             self.gmail.logout_mailbox()
             self.local_files = s.ls_files(self.data_dir,'csv',False)
             

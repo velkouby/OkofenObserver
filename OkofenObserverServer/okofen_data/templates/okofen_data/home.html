@@ -1,0 +1,86 @@
+{% extends "okofen_data/base.html" %}
+{% load tz %}
+{% block title %}Tableau de bord — Okofen Observer{% endblock %}
+
+{% block content %}
+  <section class="page-intro">
+    <h2>Tableau de bord — dernier jour complet</h2>
+    <p>
+      Fenêtre journalière: du {{ day_start|date:"d/m/Y H:i" }} au {{ day_end|date:"d/m/Y H:i" }}.
+    </p>
+  </section>
+
+  <section class="card">
+    <h3>Chaudière</h3>
+    <div class="controls-grid" style="margin-top: .8rem;">
+      <div class="control-group">
+        <label>Durée d'allumage (≥ 200°C)</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Période</div>
+          <div style="font-weight: 700;">{{ boiler_on_duration }}</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Consommation de pellets</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Trémie (somme des baisses)</div>
+          <div style="font-weight: 700;">{{ pellet_consumed_kg }} kg</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Chauffage (pendant les consignes)</h3>
+    <div class="controls-grid" style="margin-top: .8rem;">
+      <div class="control-group">
+        <label>Température extérieure moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Sur consignes</div>
+          <div style="font-weight: 700;">{% if heating_stats.temp_ext_moy %}{{ heating_stats.temp_ext_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Température chaudière moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Sur consignes</div>
+          <div style="font-weight: 700;">{% if heating_stats.temp_chaudiere_moy %}{{ heating_stats.temp_chaudiere_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Température départ moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Sur consignes</div>
+          <div style="font-weight: 700;">{% if heating_stats.temp_depart_moy %}{{ heating_stats.temp_depart_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Température ambiante moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Sur consignes</div>
+          <div style="font-weight: 700;">{% if heating_stats.temp_ambiante_moy %}{{ heating_stats.temp_ambiante_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Eau chaude</h3>
+    <div class="controls-grid" style="margin-top: .8rem;">
+      <div class="control-group">
+        <label>Température ECS moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Période</div>
+          <div style="font-weight: 700;">{% if ecs_stats.temp_ecs_moy %}{{ ecs_stats.temp_ecs_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Consigne ECS moyenne</label>
+        <div class="dataset-option" style="justify-content: space-between;">
+          <div style="color: var(--muted-text);">Période</div>
+          <div style="font-weight: 700;">{% if ecs_stats.temp_ecs_consigne_moy %}{{ ecs_stats.temp_ecs_consigne_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -12,7 +12,6 @@ pip install -r ./requirements.txt
 '''
 Create your own config_okofen.json file with your Gmail application credentials and the filter with your Okfen boiler ID name
 {
-    
     "data_dir":"~/dev/data/okfen",
     "gmail_acount":"your.email@gmail.com",
     "gmail_passwd":"[Gmail application pass]",

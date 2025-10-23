@@ -110,7 +110,7 @@ class Okofen():
                 if filename in existing_files:
                     self.print(f'Already have {filename} in db')
                     continue
-                filePath = os.path.join('/home/velkouby/dev/data/okfen', filename)
+                filePath = os.path.join(self.config.data_dir, filename)
                 if not os.path.isfile(filePath):
                     with open(filePath, 'wb') as fp:
                         fp.write(part.get_payload(decode=True))

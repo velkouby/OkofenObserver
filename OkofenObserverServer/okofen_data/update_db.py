@@ -64,7 +64,89 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json", batch_size:
                 continue
             if verbose>0:
                 print(f"Start to add {current.shape[0]} data")
-            current['datetime']=pd.to_datetime(current['Datum ']+' '+current['Zeit '],format="%d.%m.%Y %H:%M:%S")
+            # Normaliser fortement les noms de colonnes
+            def _norm(c: str) -> str:
+                c = str(c).lstrip("\ufeff").strip()
+                c = c.replace("\u00a0", " ")  # nbsp -> espace normal
+                c = " ".join(c.split())       # compresser espaces multiples
+                return c
+
+            current.columns = [_norm(c) for c in current.columns]
+
+            # Supprimer lignes d'entête répliquées: si une ligne contient exactement les libellés de colonnes
+            header_set = set(current.columns)
+            mask_header_dup = current.apply(lambda r: set(str(x).strip() for x in r.values) == header_set, axis=1)
+            if mask_header_dup.any():
+                current = current[~mask_header_dup]
+
+            # Dictionnaires d'alias pour colonnes date/heure
+            lower_map = {c.lower(): c for c in current.columns}
+            date_aliases = [
+                "datum", "date", "jour", "datum (date)", "date (local)", "date (utc)",
+                "date/ jour", "date jour"
+            ]
+            time_aliases = [
+                "zeit", "time", "heure", "uhrzeit", "heure locale", "heure (local)", "heure (utc)",
+                "uhrzeit [hh:mm:ss]"
+            ]
+            datetime_aliases = [
+                "datetime", "timestamp", "date time", "date_time", "date-heure", "dateheure",
+                "date/heure", "date-heure", "horodatage", "zeitstempel", "zeitpunkt",
+                "timestamp (utc)", "datetime (utc)", "datetime (local)", "date-time"
+            ]
+
+            # Trouver colonnes
+            dcol = next((lower_map[a] for a in date_aliases if a in lower_map), None)
+            tcol = next((lower_map[a] for a in time_aliases if a in lower_map), None)
+            dtcol = next((lower_map[a] for a in datetime_aliases if a in lower_map), None)
+
+            # Construire 'datetime'
+            import pandas as pd
+            if dtcol:
+                # Colonne datetime unique
+                dt_str = current[dtcol].astype(str).str.strip()
+                current["datetime"] = pd.to_datetime(dt_str, errors="coerce", dayfirst=True, infer_datetime_format=True)
+            elif dcol and tcol:
+                dt_str = (current[dcol].astype(str).str.strip() + " " + current[tcol].astype(str).str.strip()).str.strip()
+                dt_str = dt_str.replace({"": pd.NA, "NaN": pd.NA, "None": pd.NA})
+                current["datetime"] = pd.to_datetime(dt_str, format="%d.%m.%Y %H:%M:%S", errors="coerce", dayfirst=True)
+                if current["datetime"].isna().any():
+                    current.loc[current["datetime"].isna(), "datetime"] = pd.to_datetime(
+                        dt_str[current["datetime"].isna()],
+                        errors="coerce",
+                        dayfirst=True,
+                        infer_datetime_format=True,
+                    )
+            else:
+                # Fallbacks supplémentaires: essayer de parser la colonne Date seule comme datetime
+                parsed = False
+                if dcol:
+                    try:
+                        current["datetime"] = pd.to_datetime(current[dcol].astype(str).str.strip(), errors="coerce", dayfirst=True, infer_datetime_format=True)
+                        parsed = True
+                    except Exception:
+                        parsed = False
+                # Sinon tenter de détecter une colonne candidate en scannant toutes les colonnes texte
+                if not parsed:
+                    for cand in current.columns:
+                        s = current[cand].astype(str).str.strip()
+                        # Heuristique: contient un chiffre et un séparateur de date ou un 'T'
+                        if s.str.contains(r"(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}|T\d{2}:\d{2})", regex=True, na=False).mean() > 0.5:
+                            dt_try = pd.to_datetime(s, errors="coerce", dayfirst=True, infer_datetime_format=True, utc=False)
+                            if dt_try.notna().mean() > 0.5:
+                                current["datetime"] = dt_try
+                                parsed = True
+                                break
+                if not parsed:
+                    raise ValueError("Colonnes date/heure introuvables dans le CSV (attendues: Datum/Date et Zeit/Time ou une colonne 'DateTime/Timestamp').")
+
+            # Filtrer lignes invalides
+            invalid_count = int(current["datetime"].isna().sum())
+            if invalid_count and verbose>0:
+                print(f"Ignored {invalid_count} rows with invalid datetime in {filename}")
+            current = current.dropna(subset=['datetime'])
+
+            # ... existing code ...
             current = current.sort_values(['datetime'],ascending = [True]) # type: ignore
             for col_name in dico:
                 if col_name in current.columns:
@@ -88,25 +170,25 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json", batch_size:
                 objs.append(
                     RawData(
                         datetime = datetime_c,
-                        ext_temp = current.loc[idx,'T°C Extérieure'],
-                        house_temp = current.loc[idx,'T°C Ambiante'],
-                        house_temp_target = current.loc[idx,'T°C Ambiante Consigne'],
-                        silo_level = current.loc[idx,'Niveau Sillo kg'],
-                        hopper_level = current.loc[idx,'Niveau tremis kg'],
-                        boiler_water_temp = current.loc[idx,'T°C Chaudière'],
-                        boiler_water_temp_target = current.loc[idx,'T°C Chaudière Consigne'],
-                        boiler_modulation = current.loc[idx,'PE1 Modulation[%]'],
-                        boiler_fire_temps = current.loc[idx,'T°C Flamme'],
-                        boiler_fire_temps_atrget = current.loc[idx,'T°C Flamme Consigne'],
-                        heating_start_circulation_temp = current.loc[idx,'T°C Départ'],
-                        heating_start_circulation_temp_target = current.loc[idx,'T°C Départ Consigne'],
-                        heating_circulation = current.loc[idx,'Circulateur Chauffage (On/Off)'],
-                        heating_status = current.loc[idx,'Status Chauff.'],
-                        water_temp = current.loc[idx,'T°C ECS'],
-                        water_stop_temp = current.loc[idx,'T°C ECS (arret)'],
-                        water_temp_target = current.loc[idx,'T°C ECS Consigne'],
-                        water_circulation = current.loc[idx,'Circulateur ECS'],
-                        water_status = current.loc[idx,'Status ESC'],
+                        ext_temp = current.loc[idx,'T°C Extérieure'] if 'T°C Extérieure' in current.columns else None,
+                        house_temp = current.loc[idx,'T°C Ambiante'] if 'T°C Ambiante' in current.columns else None,
+                        house_temp_target = current.loc[idx,'T°C Ambiante Consigne'] if 'T°C Ambiante Consigne' in current.columns else None,
+                        silo_level = current.loc[idx,'Niveau Sillo kg'] if 'Niveau Sillo kg' in current.columns else None,
+                        hopper_level = current.loc[idx,'Niveau tremis kg'] if 'Niveau tremis kg' in current.columns else None,
+                        boiler_water_temp = current.loc[idx,'T°C Chaudière'] if 'T°C Chaudière' in current.columns else None,
+                        boiler_water_temp_target = current.loc[idx,'T°C Chaudière Consigne'] if 'T°C Chaudière Consigne' in current.columns else None,
+                        boiler_modulation = current.loc[idx,'PE1 Modulation[%]'] if 'PE1 Modulation[%]' in current.columns else None,
+                        boiler_fire_temps = current.loc[idx,'T°C Flamme'] if 'T°C Flamme' in current.columns else None,
+                        boiler_fire_temps_atrget = current.loc[idx,'T°C Flamme Consigne'] if 'T°C Flamme Consigne' in current.columns else None,
+                        heating_start_circulation_temp = current.loc[idx,'T°C Départ'] if 'T°C Départ' in current.columns else None,
+                        heating_start_circulation_temp_target = current.loc[idx,'T°C Départ Consigne'] if 'T°C Départ Consigne' in current.columns else None,
+                        heating_circulation = current.loc[idx,'Circulateur Chauffage (On/Off)'] if 'Circulateur Chauffage (On/Off)' in current.columns else None,
+                        heating_status = current.loc[idx,'Status Chauff.'] if 'Status Chauff.' in current.columns else None,
+                        water_temp = current.loc[idx,'T°C ECS'] if 'T°C ECS' in current.columns else None,
+                        water_stop_temp = current.loc[idx,'T°C ECS (arret)'] if 'T°C ECS (arret)' in current.columns else None,
+                        water_temp_target = current.loc[idx,'T°C ECS Consigne'] if 'T°C ECS Consigne' in current.columns else None,
+                        water_circulation = current.loc[idx,'Circulateur ECS'] if 'Circulateur ECS' in current.columns else None,
+                        water_status = current.loc[idx,'Status ESC'] if 'Status ESC' in current.columns else None,
                     )
                 )
 

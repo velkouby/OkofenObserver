@@ -1,0 +1,80 @@
+{% extends "okofen_data/base.html" %}
+{% load static %}
+{% block title %}Exploration des données — Okofen Observer{% endblock %}
+
+{% block extra_head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+  <section class="page-intro">
+    <h2>Exploration des données</h2>
+    <p>
+      Visualisez les principaux indicateurs de votre chaudière Okofen, comparez les
+      consignes et mesures réelles, et filtrez les données sur les plages temporelles qui vous intéressent.
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="controls-grid">
+      <div class="control-group">
+        <label for="start-date">Date de début</label>
+        <input type="date" id="start-date" name="start-date" />
+      </div>
+      <div class="control-group">
+        <label for="end-date">Date de fin</label>
+        <input type="date" id="end-date" name="end-date" />
+      </div>
+      <div class="control-group">
+        <label>Périodes rapides</label>
+        <div class="quick-range" role="group" aria-label="Périodes rapides">
+          <button data-days="1" type="button">Dernier jour</button>
+          <button data-days="2" type="button">2 jours</button>
+          <button data-days="7" type="button">7 jours</button>
+          <button data-days="14" type="button">14 jours</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top: 1.2rem;">
+      <button class="btn-primary" id="refresh-button" type="button">Mettre à jour</button>
+      <div class="status-indicator" id="status-indicator">
+        <span class="dot offline"></span>
+        <span>En attente de données…</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Jeux de données</h3>
+    <p style="color: var(--muted-text); margin-bottom: 1rem;">
+      Sélectionnez les séries à afficher. Vous pouvez combiner plusieurs indicateurs sur le même graphique.
+    </p>
+    <div class="dataset-selector" id="dataset-selector"></div>
+  </section>
+
+  <section class="card">
+    <div class="chart-wrapper">
+      <canvas id="data-chart" aria-label="Graphique des données Okofen" role="img"></canvas>
+    </div>
+    <div class="status-bar">
+      <div class="status-indicator" id="data-range"></div>
+      <div class="status-indicator" id="sample-count"></div>
+      <div class="status-indicator" id="last-update"></div>
+    </div>
+    <div class="empty-state" id="empty-state" hidden>
+      <strong>Aucune donnée disponible pour la période choisie.</strong>
+      Essayez d'élargir la plage temporelle ou de vérifier l'état de la collecte.
+    </div>
+  </section>
+
+  <script id="metrics-config" type="application/json">
+    {{ metrics_config|safe }}
+  </script>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'js/graph-explorer.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Okofen Observer{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1 class="site-title">Okofen Observer</h1>
+        <nav class="site-nav">
+          <a href="{% url 'index' %}" class="nav-link">Accueil</a>
+          <a href="{% url 'graph_explorer' %}" class="nav-link">Exploration des données</a>
+        </nav>
+      </div>
+    </header>
+    <main class="main-content">
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="container">
+        <p>&copy; {% now 'Y' %} Okofen Observer — suivi intelligent de votre chaudière.</p>
+      </div>
+    </footer>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

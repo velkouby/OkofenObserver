@@ -29,6 +29,13 @@ class Command(BaseCommand):
             default=1,
             help="Niveau de verbosité (0 silencieux, 1 verbeux)",
         )
+        parser.add_argument(
+            "--batch-size",
+            type=int,
+            dest="batch_size",
+            default=1000,
+            help="Taille des lots pour l'insertion en base (bulk_create)",
+        )
 
     def handle(self, *args, **options):
         config_path = options["config"]
@@ -56,7 +63,7 @@ class Command(BaseCommand):
 
         self.stdout.write("[2/2] Import des CSV locaux vers la base Django…")
         try:
-            update_db(verbose=verbose, config_path=config_path)
+            update_db(verbose=verbose, config_path=config_path, batch_size=options["batch_size"])
             self.stdout.write(self.style.SUCCESS("Import terminé."))
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"Erreur pendant l'import DB: {e}"))

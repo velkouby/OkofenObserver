@@ -31,12 +31,13 @@ def get_date_from_filename(filename:str)->dt.date:
     tmp = s.basename(filename).split('_')[1]
     return dt.date(year=int(tmp[:4]), month=int(tmp[4:6]),day=int(tmp[6:8]))
 
-def update_db(verbose=0, config_path: str = "../config_okofen.json"):
+def update_db(verbose=0, config_path: str = "../config_okofen.json", batch_size: int = 1000):
     """
     Importe les fichiers CSV locaux Okofen dans la base Django (modèle RawData).
 
     - verbose: niveau de log (0 = silencieux)
     - config_path: chemin vers le fichier config_okofen.json
+    - batch_size: taille des lots pour l'insertion en base
     """
     config = read_OkofenConfig(config_path)
     okofen = Okofen(config)
@@ -53,7 +54,7 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json"):
     for filename in local_files:
         files_by_date[get_date_from_filename(filename)]=filename
 
-    for current_date in files_by_date:
+    for current_date in sorted(files_by_date.keys()):
         filename = files_by_date[current_date]
         if verbose>0:
             print(f"read {filename}")
@@ -68,39 +69,49 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json"):
             for col_name in dico:
                 if col_name in current.columns:
                     current=current.rename(columns={col_name:dico[col_name]}) # type: ignore
-            current = current.replace(',','.', regex=True)
+            current = current.replace(',', '.', regex=True)
+
+            # Ne garder que les lignes du jour correspondant au fichier
+            current = current[current['datetime'].dt.date == current_date]
+
+            # Assurer la présence des colonnes ECS, sinon valeur par défaut 0
+            for col in ['T°C ECS', 'T°C ECS (arret)', 'T°C ECS Consigne', 'Circulateur ECS', 'Status ESC']:
+                if col not in current.columns:
+                    current[col] = 0
+
+            # Construire les objets puis insertion par lot
+            objs = []
             for idx in current.index:
-                if verbose>0:
-                    print(f"{idx}            ",end='\r')
+                if verbose>0 and (idx % 1000 == 0):
+                    print(f"building row {idx}    ", end='\r')
                 datetime_c = make_aware(current.loc[idx,'datetime'])
-                if datetime_c.date()!=current_date:
-                    continue
-                # Prépare les valeurs; si colonne absente, fournir une valeur par défaut 0
-                has_ecs = 'T°C ECS' in current.columns
-                defaults = {
-                    'ext_temp': current.loc[idx,'T°C Extérieure'],
-                    'house_temp': current.loc[idx,'T°C Ambiante'],
-                    'house_temp_target': current.loc[idx,'T°C Ambiante Consigne'],
-                    'silo_level': current.loc[idx,'Niveau Sillo kg'],
-                    'hopper_level': current.loc[idx,'Niveau tremis kg'],
-                    'boiler_water_temp': current.loc[idx,'T°C Chaudière'],
-                    'boiler_water_temp_target': current.loc[idx,'T°C Chaudière Consigne'],
-                    'boiler_modulation': current.loc[idx,'PE1 Modulation[%]'],
-                    'boiler_fire_temps': current.loc[idx,'T°C Flamme'],
-                    'boiler_fire_temps_atrget': current.loc[idx,'T°C Flamme Consigne'],
-                    'heating_start_circulation_temp': current.loc[idx,'T°C Départ'],
-                    'heating_start_circulation_temp_target': current.loc[idx,'T°C Départ Consigne'],
-                    'heating_circulation': current.loc[idx,'Circulateur Chauffage (On/Off)'],
-                    'heating_status': current.loc[idx,'Status Chauff.'],
-                    'water_temp': current.loc[idx,'T°C ECS'] if has_ecs else 0,
-                    'water_stop_temp': current.loc[idx,'T°C ECS (arret)'] if has_ecs else 0,
-                    'water_temp_target': current.loc[idx,'T°C ECS Consigne'] if has_ecs else 0,
-                    'water_circulation': current.loc[idx,'Circulateur ECS'] if has_ecs else 0,
-                    'water_status': current.loc[idx,'Status ESC'] if has_ecs else 0,
-                }
-                # Insère sans violer la contrainte unique; si existe, ne crée pas et n’erreure pas
-                RawData.objects.get_or_create(
-                    datetime=datetime_c,
-                    defaults=defaults
+                objs.append(
+                    RawData(
+                        datetime = datetime_c,
+                        ext_temp = current.loc[idx,'T°C Extérieure'],
+                        house_temp = current.loc[idx,'T°C Ambiante'],
+                        house_temp_target = current.loc[idx,'T°C Ambiante Consigne'],
+                        silo_level = current.loc[idx,'Niveau Sillo kg'],
+                        hopper_level = current.loc[idx,'Niveau tremis kg'],
+                        boiler_water_temp = current.loc[idx,'T°C Chaudière'],
+                        boiler_water_temp_target = current.loc[idx,'T°C Chaudière Consigne'],
+                        boiler_modulation = current.loc[idx,'PE1 Modulation[%]'],
+                        boiler_fire_temps = current.loc[idx,'T°C Flamme'],
+                        boiler_fire_temps_atrget = current.loc[idx,'T°C Flamme Consigne'],
+                        heating_start_circulation_temp = current.loc[idx,'T°C Départ'],
+                        heating_start_circulation_temp_target = current.loc[idx,'T°C Départ Consigne'],
+                        heating_circulation = current.loc[idx,'Circulateur Chauffage (On/Off)'],
+                        heating_status = current.loc[idx,'Status Chauff.'],
+                        water_temp = current.loc[idx,'T°C ECS'],
+                        water_stop_temp = current.loc[idx,'T°C ECS (arret)'],
+                        water_temp_target = current.loc[idx,'T°C ECS Consigne'],
+                        water_circulation = current.loc[idx,'Circulateur ECS'],
+                        water_status = current.loc[idx,'Status ESC'],
+                    )
                 )
+
+            if objs:
+                if verbose>0:
+                    print(f"\nBulk inserting {len(objs)} rows (batch_size={batch_size})…")
+                RawData.objects.bulk_create(objs, batch_size=batch_size, ignore_conflicts=True)
         print("")

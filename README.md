@@ -30,6 +30,20 @@ https://support.google.com/mail/answer/185833?hl=en
 python manage.py runserver
 python manage.py shell
 
+## Sync command (Gmail → CSV → DB)
+
+From `OkofenObserverServer/`, run:
+
+```
+python manage.py okofen_sync [--config ../config_okofen.json] [--no-download] [--verbose 1] [--batch-size 1000]
+```
+
+Options:
+- `--config` path to `config_okofen.json` (default: `../config_okofen.json`)
+- `--no-download` skip Gmail; import only existing local CSV files
+- `--verbose 0|1` logging level
+- `--batch-size N` database insert batch size (default 1000)
+
 ## JSON API
 
 The Django app exposes minimal JSON endpoints under `/data/` (day window starts at 03:00):

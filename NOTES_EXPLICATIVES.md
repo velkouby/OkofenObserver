@@ -42,10 +42,11 @@ Une commande a été ajoutée: `okofen_sync`.
   - `--config /chemin/vers/config_okofen.json` (défaut: `../config_okofen.json`)
   - `--no-download` pour ignorer Gmail et importer seulement les CSV déjà présents.
   - `--verbose 0|1` (défaut: 1)
+  - `--batch-size N` (défaut: 1000) — insertion en base par lots (bulk_create)
 
 Sous le capot:
 - Lit la config, instancie `Okofen`, lance `download_data_from_gmail()` (sauf `--no-download`).
-- Enchaîne sur `okofen_data.update_db.update_db(verbose, config_path)` pour l’import vers `RawData`.
+- Enchaîne sur `okofen_data.update_db.update_db(verbose, config_path, batch_size)` pour l’import vers `RawData` (insertion par lots).
 
 ## Endpoints Django
 - `GET /data/` → texte de diagnostic.

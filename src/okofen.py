@@ -136,7 +136,8 @@ class Okofen():
         if s.exists(db_filename):
             self.data = pd.read_hdf(db_filename,key='data')
         else:
-            data = pd.DataFrame()
+            # Initialisation correcte lors de la première exécution sans HDF5 existant
+            self.data = pd.DataFrame()
         lastes_date_in_db = find_lastest_date(self.data)
         local_files = self.get_local_datafile_list()
         have_new_data = False

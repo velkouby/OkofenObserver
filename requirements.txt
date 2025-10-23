@@ -4,4 +4,6 @@ pandas
 tables
 numpy
 django==4.2.2
+mysqlclient
+python-dotenv
 git+ssh://git@github.com/baracodadailyhealthtech/bml_nlp.git@langchain-1.0#egg=bml_nlp

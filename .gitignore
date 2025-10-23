@@ -2,6 +2,10 @@ __pycache__/
 venv_okofen/
 config_okofen.json
 
+# Environment files
+.env
+OkofenObserverServer/.env
+
 OkofenObserverServer/db.sqlite3
 
 figure.jpg
@@ -1433,3 +1437,4 @@ figure.jpg
 /data/csv_db/touch_20251020.csv
 /data/csv_db/touch_20251021.csv
 /data/csv_db/touch_20251022.csv
+/data/0-okofen_db-vendome.h5

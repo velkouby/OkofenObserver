@@ -52,6 +52,20 @@ Sous le capot:
 - `GET /data/daydata/<year>/<month>/<day>/graph/` → sérialisation textuelle du DataFrame sur la journée (03:00 → +24h).
 - `GET /admin/` → interface d’admin (modèle `RawData`).
 
+### API JSON
+- `GET /data/daydata/<year>/<month>/<day>/json/`
+  - Retour: `{ "count": <int>, "data": [ { "datetime": ISO8601, ... } ] }`
+- `GET /data/range/<YYYY-MM-DD>/<YYYY-MM-DD>/json/`
+  - Plage inclusive par jour, avec fenêtres 03:00 → +24h.
+  - Retour: `{ "count": <int>, "start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "data": [...] }`
+- `GET /data/lastdays/<days>/json/`
+  - N derniers jours complets (03:00 → +24h).
+  - Retour: `{ "count": <int>, "days": <int>, "data": [...] }`
+
+Remarques:
+- `datetime` est sérialisé en chaîne ISO 8601 (timezone-aware).
+- Les clés de mesures correspondent aux libellés du modèle (ex: `"T°C Chaudière"`, `"Niveau Sillo kg"`).
+
 ## Code possiblement non-utilisé
 - `src/plot.py`: utilisé dans le notebook `Okofen_watcher.ipynb`, pas dans le serveur.
 - `okofen_data/update_db.py`: module invocable en shell ou via la commande ajoutée; non exposé via vue.

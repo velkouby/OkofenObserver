@@ -199,6 +199,155 @@ button:focus {
   font-weight: 600;
 }
 
+.muted {
+  color: var(--muted-text);
+}
+
+.tab-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tab-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tab-toggle {
+  border: 1px solid rgba(31, 35, 48, 0.1);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--muted-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-toggle:hover,
+.tab-toggle:focus {
+  border-color: var(--brand);
+  color: var(--brand);
+  outline: none;
+}
+
+.tab-toggle.is-active {
+  background: var(--brand);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 25px rgba(43, 140, 243, 0.25);
+}
+
+.tab-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.is-active {
+  display: block;
+}
+
+.period-range {
+  margin: 0;
+  color: var(--muted-text);
+  font-weight: 500;
+}
+
+.summary-section {
+  margin-top: 1.4rem;
+}
+
+.summary-section h3 {
+  margin: 0 0 0.8rem 0;
+  font-size: 1.1rem;
+}
+
+.metrics-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.metrics-grid--two {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.metrics-grid--three {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(8px);
+}
+
+.metric-label {
+  font-weight: 600;
+  color: var(--muted-text);
+}
+
+.metric-value {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.charts-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.chart-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.chart-card {
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(31, 35, 48, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.chart-card h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chart-card--wide {
+  width: 100%;
+}
+
+.chart-card canvas {
+  width: 100% !important;
+}
+
+.chart-empty {
+  padding: 1rem;
+  border-radius: 0.8rem;
+  background: rgba(15, 23, 42, 0.05);
+  text-align: center;
+  color: var(--muted-text);
+}
+
 .quick-range button:hover {
   background: rgba(43, 140, 243, 0.2);
 }

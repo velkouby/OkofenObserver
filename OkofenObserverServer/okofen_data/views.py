@@ -1,15 +1,17 @@
 import json
 from datetime import datetime, timedelta
+from typing import Sequence
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.utils import timezone as djtz
 
-from okofen_data.models import RawData
+from okofen_data.models import DailyStat
 
 import okofen_data.data_api as api
 
-def _format_duration(seconds: float) -> str:
+def _format_duration(seconds: float | None) -> str:
     if seconds is None or seconds <= 0:
         return "0:00"
     mins, sec = divmod(int(seconds), 60)
@@ -17,161 +19,124 @@ def _format_duration(seconds: float) -> str:
     return f"{hrs:d}:{mins:02d}"
 
 
-def _compute_last_complete_day_dataframe():
-    """Return dataframe for the last complete day based on available data.
-
-    Day window is [D 03:00, D+1 03:00). We pick the window immediately
-    preceding the day that contains the latest data point.
-    """
-    last = RawData.objects.order_by('-datetime').first()
-    if not last:
-        return None, None, None
-    # Work in project-local timezone, then drop tzinfo to align with data_api
-    last_local = djtz.localtime(last.datetime)
-    last_naive = last_local.replace(tzinfo=None)
-    start_current = api.get_start_day_datetime(last_naive)
-    # If timestamp is before 03:00, it belongs to previous window
-    if last_naive < start_current:
-        start_current = start_current - timedelta(days=1)
-    # Last complete day is the window just before the current window
-    start_dt = start_current - timedelta(days=1)
-    end_dt = start_current
-    df = api.get_data_by_dates(start_dt, end_dt)
-    return df, start_dt, end_dt
-
-
-def _duration_boiler_on_sec(df, threshold_c=200.0) -> float:
-    """Compute total duration in seconds where flame temp >= threshold.
-
-    We assume status for interval [t_i, t_{i+1}) equals status at t_i.
-    """
-    if df is None or df.empty or 'T°C Flamme' not in df.columns:
-        return 0.0
-    dfi = df.copy()
-    dfi = dfi.dropna(subset=['T°C Flamme'])
-    if dfi.empty:
-        return 0.0
-    idx = dfi.index.to_series().sort_values()
-    # durations between consecutive samples
-    dt = idx.shift(-1) - idx
-    dt_sec = dt.dt.total_seconds().fillna(0)
-    status = (dfi['T°C Flamme'] >= threshold_c).astype(int)
-    # Align dt_sec to same index
-    on_dt_sec = dt_sec * status
-    return float(on_dt_sec.sum())
-
-
-def _sum_descents(series) -> float:
-    """Sum of all decreases over the series (positive kg consumed)."""
-    if series is None:
-        return 0.0
-    s = series.dropna()
-    if s.empty:
-        return 0.0
-    diffs = s.diff()
-    # Negative diffs represent consumption (level decreased)
-    consumed = -diffs[diffs < 0].sum()
-    return float(consumed) if consumed == consumed else 0.0  # handle NaN
-
-
-def _time_window_mean(df, colname: str, start: datetime, end: datetime):
-    if df is None or df.empty or colname not in df.columns:
+def _mean_attr(stats: Sequence[DailyStat], attr: str) -> float | None:
+    values = [getattr(stat, attr) for stat in stats if getattr(stat, attr) is not None]
+    if not values:
         return None
-    # Align timezone awareness for comparisons
-    try:
-        index_tz = getattr(df.index, 'tz', None)
-        if index_tz is not None:
-            if start.tzinfo is None:
-                start = djtz.make_aware(start)
-            if end.tzinfo is None:
-                end = djtz.make_aware(end)
-    except Exception:
-        pass
-    window = df.loc[(df.index >= start) & (df.index < end)]
-    if window.empty:
-        return None
-    s = window[colname].dropna()
-    return float(s.mean()) if not s.empty else None
+    return float(sum(values) / len(values))
+
+
+def _period_bounds(stats: Sequence[DailyStat]):
+    if not stats:
+        return None, None
+    start = stats[-1].window_start
+    end = stats[0].window_end
+    return start, end
+
+
+def _build_summary(stats: Sequence[DailyStat]):
+    count = len(stats)
+    range_start, range_end = _period_bounds(stats)
+    boiler_sec = _mean_attr(stats, 'boiler_on_seconds')
+    pellet_avg = _mean_attr(stats, 'pellet_consumed_kg')
+    heating = {
+        'temp_ambiante_moy': _mean_attr(stats, 'ambiante_temp_mean'),
+        'temp_ambiante_nuit': _mean_attr(stats, 'ambiante_temp_night_mean'),
+        'temp_depart_moy': _mean_attr(stats, 'depart_temp_mean'),
+        'temp_ext_moy': _mean_attr(stats, 'ext_temp_mean'),
+        'temp_ext_nuit': _mean_attr(stats, 'ext_temp_night_mean'),
+        'temp_chaudiere_moy': _mean_attr(stats, 'boiler_water_temp_mean'),
+    }
+    ecs = {
+        'temp_ecs_chauffe_moy': _mean_attr(stats, 'ecs_temp_heat_mean'),
+        'temp_ecs_global_moy': _mean_attr(stats, 'ecs_temp_global_mean'),
+    }
+    return {
+        'has_data': count > 0,
+        'count': count,
+        'range_start': range_start,
+        'range_end': range_end,
+        'boiler_on_seconds': boiler_sec,
+        'boiler_on_hours': (boiler_sec / 3600.0) if boiler_sec is not None else None,
+        'boiler_on_duration': _format_duration(boiler_sec),
+        'pellet_consumed_kg': pellet_avg,
+        'heating': heating,
+        'ecs': ecs,
+    }
+
+
+def _chart_data(stats: Sequence[DailyStat]) -> dict:
+    if not stats:
+        return {
+            'labels': [],
+            'chaudiere': {'boiler_hours': [], 'pellet_consumed': []},
+            'chauffage': {},
+            'ecs': {},
+        }
+
+    labels = [stat.day.strftime('%d/%m') for stat in stats]
+
+    def _values(attr: str, transform=None):
+        data = []
+        for stat in stats:
+            value = getattr(stat, attr)
+            if value is None:
+                data.append(None)
+            else:
+                data.append(transform(value) if transform else float(value))
+        return data
+
+    chauffage = {
+        'temp_ext_moy': _values('ext_temp_mean'),
+        'temp_ext_nuit': _values('ext_temp_night_mean'),
+        'temp_chaudiere_moy': _values('boiler_water_temp_mean'),
+        'temp_depart_moy': _values('depart_temp_mean'),
+        'temp_ambiante_moy': _values('ambiante_temp_mean'),
+        'temp_ambiante_nuit': _values('ambiante_temp_night_mean'),
+    }
+
+    ecs = {
+        'temp_ecs_chauffe_moy': _values('ecs_temp_heat_mean'),
+        'temp_ecs_global_moy': _values('ecs_temp_global_mean'),
+    }
+
+    chaudiere = {
+        'boiler_hours': _values('boiler_on_seconds', lambda s: round(s / 3600.0, 2)),
+        'pellet_consumed': _values('pellet_consumed_kg', lambda x: round(x, 2)),
+    }
+
+    return {
+        'labels': labels,
+        'chaudiere': chaudiere,
+        'chauffage': chauffage,
+        'ecs': ecs,
+    }
 
 
 def index(request):
-    # Compute dashboard metrics for the last complete day of data
-    df, start_dt, end_dt = _compute_last_complete_day_dataframe()
+    recent_stats_desc = list(DailyStat.objects.filter(samples_count__gt=0).order_by('-day')[:30])
+    day_summary = _build_summary(recent_stats_desc[:1])
+    week_summary = _build_summary(recent_stats_desc[:7])
+    month_summary = _build_summary(recent_stats_desc[:30])
 
-    # Boiler on-time based on flame temp threshold
-    boiler_on_sec = _duration_boiler_on_sec(df, threshold_c=200.0)
+    summary_tabs = [
+        {'id': 'day', 'label': "Aujourd'hui", 'summary': day_summary},
+        {'id': 'week', 'label': 'Semaine', 'summary': week_summary},
+        {'id': 'month', 'label': 'Mois', 'summary': month_summary},
+    ]
 
-    # Pellet consumption (kg) from trémie level decreases
-    hopper_key = 'Niveau tremis kg'
-    pellet_consumed = _sum_descents(df[hopper_key]) if (df is not None and not df.empty and hopper_key in df.columns) else 0.0
+    chart_stats = list(reversed(recent_stats_desc))
+    chart_data = _chart_data(chart_stats)
 
-    # Heating consigne periods mask
-    heating_mask = None
-    if df is not None and not df.empty:
-        if 'Status Chauff.' in df.columns:
-            heating_mask = df['Status Chauff.'] > 0
-        elif 'T°C Départ Consigne' in df.columns:
-            # Fallback: consider consigne periods when a non-zero target exists
-            heating_mask = df['T°C Départ Consigne'].fillna(0) > 0
-        elif 'Circulateur Chauffage (On/Off)' in df.columns:
-            heating_mask = df['Circulateur Chauffage (On/Off)'].fillna(0) > 0
-
-    def _masked_mean(colname):
-        if df is None or df.empty or colname not in df.columns:
-            return None
-        s = df[colname].dropna()
-        if s.empty:
-            return None
-        if heating_mask is not None and heating_mask.any():
-            s = df.loc[heating_mask, colname].dropna()
-        return float(s.mean()) if not s.empty else None
-
-    heating_stats = {
-        'temp_ext_moy': _masked_mean('T°C Extérieure'),
-        'temp_chaudiere_moy': _masked_mean('T°C Chaudière'),
-        'temp_depart_moy': _masked_mean('T°C Départ'),
-        'temp_ambiante_moy': _masked_mean('T°C Ambiante'),
-    }
-
-    # ECS: averages
-    def _daily_mean(colname):
-        if df is None or df.empty or colname not in df.columns:
-            return None
-        s = df[colname].dropna()
-        return float(s.mean()) if not s.empty else None
-
-    ecs_mask = None
-    if df is not None and not df.empty and 'T°C ECS Consigne' in df.columns:
-        ecs_mask = df['T°C ECS Consigne'].fillna(0) > 40.0
-    def _ecs_heating_mean():
-        if df is None or df.empty or 'T°C ECS' not in df.columns:
-            return None
-        if ecs_mask is None or not ecs_mask.any():
-            return None
-        s = df.loc[ecs_mask, 'T°C ECS'].dropna()
-        return float(s.mean()) if not s.empty else None
-
-    ecs_stats = {
-        'temp_ecs_chauffe_moy': _ecs_heating_mean(),
-        'temp_ecs_global_moy': _daily_mean('T°C ECS'),
-    }
-
-    # Night ambient temperature mean between 03:00 and 05:00
-    night_start = start_dt
-    night_end = start_dt + timedelta(hours=2)
-    night_ambiante_moy = _time_window_mean(df, 'T°C Ambiante', night_start, night_end)
-    night_ext_moy = _time_window_mean(df, 'T°C Extérieure', night_start, night_end)
+    chart_range_start = chart_stats[0].day if chart_stats else None
+    chart_range_end = chart_stats[-1].day if chart_stats else None
 
     context = {
-        'day_start': start_dt,
-        'day_end': end_dt,
-        'boiler_on_duration': _format_duration(boiler_on_sec),
-        'boiler_on_seconds': int(boiler_on_sec),
-        'pellet_consumed_kg': round(pellet_consumed, 2) if pellet_consumed is not None else None,
-        'heating_stats': heating_stats,
-        'ecs_stats': ecs_stats,
-        'night_ambiante_moy': night_ambiante_moy,
-        'night_ext_moy': night_ext_moy,
+        'summary_tabs': summary_tabs,
+        'chart_data_json': json.dumps(chart_data, ensure_ascii=False, cls=DjangoJSONEncoder),
+        'chart_range_start': chart_range_start,
+        'chart_range_end': chart_range_end,
+        'latest_update': recent_stats_desc[0].updated_at if recent_stats_desc else None,
     }
     return render(request, "okofen_data/home.html", context)
 

@@ -1,7 +1,9 @@
 from src.okofen import *
+from okofen_data import daily_stats
 from okofen_data.models import RawData
 from django.db.models import Max
 import datetime as dt
+from django.utils import timezone as djtz
 from django.utils.timezone import make_aware
 
 dico = {
@@ -53,6 +55,8 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json", batch_size:
     files_by_date={}
     for filename in local_files:
         files_by_date[get_date_from_filename(filename)]=filename
+
+    impacted_days: set[dt.date] = set()
 
     for current_date in sorted(files_by_date.keys()):
         filename = files_by_date[current_date]
@@ -196,4 +200,14 @@ def update_db(verbose=0, config_path: str = "../config_okofen.json", batch_size:
                 if verbose>0:
                     print(f"\nBulk inserting {len(objs)} rows (batch_size={batch_size})…")
                 RawData.objects.bulk_create(objs, batch_size=batch_size, ignore_conflicts=True)
+                days_batch = {
+                    (djtz.localtime(obj.datetime) - dt.timedelta(hours=3)).date()
+                    for obj in objs
+                    if obj.datetime is not None
+                }
+                impacted_days.update(days_batch)
         print("")
+    if impacted_days:
+        if verbose>0:
+            print(f"Computing daily stats for {len(impacted_days)} day(s)…")
+        daily_stats.compute_for_days(impacted_days)

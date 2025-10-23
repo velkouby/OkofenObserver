@@ -1,6 +1,6 @@
 from django.db import models
 
-# Create your models here.
+
 class RawData(models.Model):
     datetime = models.DateTimeField(verbose_name='datetime',unique=True)
     ext_temp = models.FloatField(verbose_name = 'T°C Extérieure',default=0.)
@@ -23,3 +23,27 @@ class RawData(models.Model):
     water_circulation = models.FloatField(verbose_name = 'Circulateur ECS',default=0.)
     water_status = models.IntegerField(verbose_name = 'Status ESC',default=0)
 
+
+class DailyStat(models.Model):
+    day = models.DateField(unique=True)
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+    samples_count = models.PositiveIntegerField(default=0)
+    boiler_on_seconds = models.FloatField(default=0.0)
+    pellet_consumed_kg = models.FloatField(default=0.0)
+    ext_temp_mean = models.FloatField(null=True, blank=True)
+    ext_temp_night_mean = models.FloatField(null=True, blank=True)
+    boiler_water_temp_mean = models.FloatField(null=True, blank=True)
+    depart_temp_mean = models.FloatField(null=True, blank=True)
+    ambiante_temp_mean = models.FloatField(null=True, blank=True)
+    ambiante_temp_night_mean = models.FloatField(null=True, blank=True)
+    ecs_temp_heat_mean = models.FloatField(null=True, blank=True)
+    ecs_temp_global_mean = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-day"]
+
+    def __str__(self) -> str:
+        return f"DailyStat({self.day})"

@@ -1,72 +1,190 @@
 {% extends "okofen_data/base.html" %}
-{% load tz %}
+{% load static tz %}
 {% block title %}Tableau de bord — Okofen Observer{% endblock %}
+
+{% block extra_head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+{% endblock %}
 
 {% block content %}
   <section class="page-intro">
-    <h2>Tableau de bord — dernier jour complet</h2>
-    <p>
-      Fenêtre journalière: du {{ day_start|date:"d/m/Y H:i" }} au {{ day_end|date:"d/m/Y H:i" }}.
-    </p>
+    <h2>Tableau de bord consolidé</h2>
+    {% if chart_range_start and chart_range_end %}
+      <p>
+        Données agrégées du {{ chart_range_start|date:"d/m/Y" }} au {{ chart_range_end|date:"d/m/Y" }}
+        (fenêtres journalières 03h → 03h).
+      </p>
+    {% else %}
+      <p>Les statistiques consolidées apparaîtront dès que des mesures seront disponibles.</p>
+    {% endif %}
+    {% if latest_update %}
+      <p class="muted">Dernière mise à jour : {{ latest_update|date:"d/m/Y H:i" }}</p>
+    {% endif %}
   </section>
 
-  <section class="card">
-    <h3>Chaudière</h3>
-    <div class="controls-grid" style="margin-top: .8rem;">
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>Durée d'allumage</div>
-        <div style="font-weight: 700;">{{ boiler_on_duration }}</div>
-      </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>Consommation pellets</div>
-        <div style="font-weight: 700;">{{ pellet_consumed_kg }} kg</div>
-      </div>
+  <section class="card tab-card" id="summary-card">
+    <div class="tab-header" role="tablist" aria-label="Synthèse quotidienne">
+      {% for tab in summary_tabs %}
+        <button
+          type="button"
+          class="tab-toggle{% if forloop.first %} is-active{% endif %}"
+          data-tab-group="summary"
+          data-tab-target="{{ tab.id }}"
+          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+        >
+          {{ tab.label }}
+        </button>
+      {% endfor %}
+    </div>
+    <div class="tab-panels">
+      {% for tab in summary_tabs %}
+        {% with summary=tab.summary %}
+          <div
+            class="tab-panel{% if forloop.first %} is-active{% endif %}"
+            data-tab-group="summary"
+            data-tab-panel="{{ tab.id }}"
+          >
+            {% if summary.has_data %}
+              <p class="period-range">
+                Période : {{ summary.range_start|date:"d/m/Y H:i" }} → {{ summary.range_end|date:"d/m/Y H:i" }}
+                {% if summary.count > 1 %}
+                  ({{ summary.count }} jours)
+                {% endif %}
+              </p>
+              <div class="summary-section">
+                <h3>Chaudière</h3>
+                <div class="metrics-grid metrics-grid--two">
+                  <div class="metric">
+                    <span class="metric-label">Durée d'allumage</span>
+                    <span class="metric-value">{{ summary.boiler_on_duration }}</span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">Consommation pellets</span>
+                    <span class="metric-value">
+                      {% if summary.pellet_consumed_kg is not None %}{{ summary.pellet_consumed_kg|floatformat:2 }} kg{% else %}–{% endif %}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="summary-section">
+                <h3>Chauffage</h3>
+                <div class="metrics-grid metrics-grid--three">
+                  <div class="metric">
+                    <span class="metric-label">T° ambiante</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_ambiante_moy is not None %}{{ summary.heating.temp_ambiante_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° ambiante nuit</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_ambiante_nuit is not None %}{{ summary.heating.temp_ambiante_nuit|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° départ</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_depart_moy is not None %}{{ summary.heating.temp_depart_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° extérieure</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_ext_moy is not None %}{{ summary.heating.temp_ext_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° extérieure nuit</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_ext_nuit is not None %}{{ summary.heating.temp_ext_nuit|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° chaudière</span>
+                    <span class="metric-value">
+                      {% if summary.heating.temp_chaudiere_moy is not None %}{{ summary.heating.temp_chaudiere_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="summary-section">
+                <h3>Eau chaude</h3>
+                <div class="metrics-grid metrics-grid--two">
+                  <div class="metric">
+                    <span class="metric-label">T° ECS en chauffe</span>
+                    <span class="metric-value">
+                      {% if summary.ecs.temp_ecs_chauffe_moy is not None %}{{ summary.ecs.temp_ecs_chauffe_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                  <div class="metric">
+                    <span class="metric-label">T° ECS moyenne</span>
+                    <span class="metric-value">
+                      {% if summary.ecs.temp_ecs_global_moy is not None %}{{ summary.ecs.temp_ecs_global_moy|floatformat:1 }} °C{% else %}–{% endif %}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            {% else %}
+              <div class="empty-state">
+                <strong>Pas de données pour cette période.</strong>
+                <p>Ajoutez ou synchronisez de nouvelles mesures pour alimenter les statistiques.</p>
+              </div>
+            {% endif %}
+          </div>
+        {% endwith %}
+      {% endfor %}
     </div>
   </section>
 
-  <section class="card">
-    <h3>Chauffage</h3>
-    <div class="controls-grid" style="margin-top: .8rem; grid-template-columns: repeat(3, minmax(220px, 1fr));">
-      <!-- Ligne 1: Ambiante, Ambiante (nuit), Départ -->
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ambiante</div>
-        <div style="font-weight: 700;">{% if heating_stats.temp_ambiante_moy %}{{ heating_stats.temp_ambiante_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+  <section class="card tab-card" id="charts-card">
+    <div class="charts-header">
+      <div>
+        <h3>Graphiques mensuels</h3>
+        {% if chart_range_start and chart_range_end %}
+          <p class="muted">Fenêtre : {{ chart_range_start|date:"d/m" }} → {{ chart_range_end|date:"d/m" }}</p>
+        {% endif %}
       </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ambiante (nuit)</div>
-        <div style="font-weight: 700;">{% if night_ambiante_moy %}{{ night_ambiante_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+      <div class="tab-header" role="tablist" aria-label="Graphiques">
+        <button type="button" class="tab-toggle is-active" data-tab-group="charts" data-tab-target="chart-chaudiere" aria-selected="true">Chaudière</button>
+        <button type="button" class="tab-toggle" data-tab-group="charts" data-tab-target="chart-chauffage" aria-selected="false">Chauffage</button>
+        <button type="button" class="tab-toggle" data-tab-group="charts" data-tab-target="chart-ecs" aria-selected="false">Eau chaude</button>
       </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° départ</div>
-        <div style="font-weight: 700;">{% if heating_stats.temp_depart_moy %}{{ heating_stats.temp_depart_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+    </div>
+    <div class="tab-panels">
+      <div class="tab-panel is-active" data-tab-group="charts" data-tab-panel="chart-chaudiere">
+        <div class="chart-grid">
+          <div class="chart-card">
+            <h4>Durée moyenne d'allumage (h)</h4>
+            <canvas id="chart-boiler-hours" height="280"></canvas>
+          </div>
+          <div class="chart-card">
+            <h4>Consommation pellets (kg)</h4>
+            <canvas id="chart-pellets" height="280"></canvas>
+          </div>
+        </div>
       </div>
-      <!-- Ligne 2: Ext, Ext (nuit), Chaudière -->
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ext</div>
-        <div style="font-weight: 700;">{% if heating_stats.temp_ext_moy %}{{ heating_stats.temp_ext_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+      <div class="tab-panel" data-tab-group="charts" data-tab-panel="chart-chauffage">
+        <div class="chart-card chart-card--wide">
+          <h4>Températures chauffage</h4>
+          <canvas id="chart-heating" height="320"></canvas>
+        </div>
       </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ext (nuit)</div>
-        <div style="font-weight: 700;">{% if night_ext_moy %}{{ night_ext_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
+      <div class="tab-panel" data-tab-group="charts" data-tab-panel="chart-ecs">
+        <div class="chart-card chart-card--wide">
+          <h4>Températures eau chaude</h4>
+          <canvas id="chart-ecs" height="320"></canvas>
+        </div>
       </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° chaudière</div>
-        <div style="font-weight: 700;">{% if heating_stats.temp_chaudiere_moy %}{{ heating_stats.temp_chaudiere_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
-      </div>
+    </div>
+    <div class="chart-empty"{% if chart_range_start %} hidden{% endif %}>
+      <strong>Aucune donnée pour tracer les graphiques.</strong>
+      <p>Les courbes apparaîtront une fois des statistiques quotidiennes enregistrées.</p>
     </div>
   </section>
 
-  <section class="card">
-    <h3>Eau chaude</h3>
-    <div class="controls-grid" style="margin-top: .8rem;">
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ECS</div>
-        <div style="font-weight: 700;">{% if ecs_stats.temp_ecs_chauffe_moy %}{{ ecs_stats.temp_ecs_chauffe_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
-      </div>
-      <div class="dataset-option" style="justify-content: space-between;">
-        <div>T° ECS global</div>
-        <div style="font-weight: 700;">{% if ecs_stats.temp_ecs_global_moy %}{{ ecs_stats.temp_ecs_global_moy|floatformat:1 }} °C{% else %}–{% endif %}</div>
-      </div>
-    </div>
-  </section>
+  <script id="chart-data" type="application/json">{{ chart_data_json|safe }}</script>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'js/home-dashboard.js' %}" defer></script>
 {% endblock %}
